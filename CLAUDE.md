@@ -17,8 +17,8 @@ GitHub repo description in sync with reality whenever behaviour changes.
 | --- | --- | --- |
 | 3 fingers ← / → | Switch tabs | `⌃⇧Tab` / `⌃Tab` |
 | 3 fingers ↑ / ↓ | Switch windows of the front app | `⌘⇧\`` / `⌘\`` |
-| `⌘` held + 3 fingers ← / → | Switch apps | `⇧Tab` / `Tab` (see below) |
-| `⌃` held + 3 fingers ← / → | Switch desktops (Spaces) | `←` / `→` (see below) |
+| `⌘` held + 3 fingers ← / → | Switch apps, no switcher panel | none — see below |
+| `⌃` held + 3 fingers ← / → | Switch desktops (Spaces) | `→` / `←` — inverted, see below |
 
 The gesture set is closed. No three-finger tap, no gesture sequences
 (swipe-right-then-left), no speed/distance discrimination — all were considered
@@ -27,14 +27,28 @@ and rejected as unreliable or unmemorable.
 ## Design decisions and why
 
 **The modifier of a gesture matches the modifier of the shortcut it triggers.**
-`⌘`+swipe fires the `⌘Tab` family, `⌃`+swipe fires `⌃←/→`. Nothing to memorize.
+`⌘`+swipe means "apps", `⌃`+swipe means "desktops". Nothing to memorize.
 
-**Consequence — no synthetic modifier flags needed.** Because the user is
-already physically holding `⌘`, we post a bare `Tab` and the system sees a real
-`⌘Tab`. This sidesteps the classic bug where a synthesized modifier merges with
-a physically held one and produces the wrong chord. It also means the app
-switcher stays open while `⌘` is down, so the user can keep swiping to move
-several apps forward — a feature we get for free rather than implementing.
+**Held modifiers are never synthesized.** Where a shortcut is posted, we send
+the bare key and let it merge with what the user is already holding. This
+sidesteps the classic bug where a synthesized modifier collides with a
+physically held one and produces the wrong chord.
+
+**App switching does not use `⌘Tab`.** The original design posted `Tab` while
+`⌘` was held and treated the switcher panel staying open as a free feature. In
+use it was not one: the owner wants the app to change immediately, not to aim
+at a panel. The panel is inseparable from `⌘Tab`, so `AppSwitcher` activates
+the next app itself through `NSWorkspace` instead.
+
+The ring is ordered by process id — launch order — deliberately, not by most
+recent use. With no panel to look at, an MRU cycle has no visible state and
+just bounces between the last two apps; a fixed ring means repeated swipes walk
+the whole list and wrap around, which is what makes "keep swiping until you get
+there" work.
+
+**Desktop switching is inverted relative to the keys it posts.** Swipe left and
+we post `⌃→`. The desktop follows the fingers, the way natural scrolling moves
+the page rather than the viewport. Owner's call, after trying it the other way.
 
 **Detection uses a public `CGEventTap` on gesture events**, not the private
 `MultitouchSupport.framework`. Tap `NSEventTypeGesture`, rebuild with
@@ -58,6 +72,14 @@ commented at their sites in `GestureTap.swift`:
    `⌘`- and `⌃`-qualified gestures therefore fell through to the unqualified
    branch. Read the held modifiers live from `CGEventSource.flagsState`, which
    is also what `KeyPoster` merges into the keys it sends.
+
+**A synthetic arrow key needs the flags real hardware sends.** Mission
+Control's "Move left a space" is registered with the modifier mask `0x840000` —
+fn + control — and a laptop's arrow keys report both the secondary-fn and the
+numeric-pad bit. A plain `⌃←` was posted correctly and provably ignored until
+`KeyCode.inherentFlags` added those bits. Check
+`~/Library/Preferences/com.apple.symbolichotkeys.plist` before blaming the tap:
+an entry with `enabled` and no `value` is on and using the system default.
 
 **The app logs to `subsystem == "com.aobasar.Tripad"`.** For an invisible,
 permission-gated app this is the only way to tell "gesture not detected" from

@@ -10,14 +10,25 @@ distributed, not notarized, no App Store.
 | --- | --- | --- |
 | 3 fingers ← / → | Switch tabs | `⌃⇧Tab` / `⌃Tab` |
 | 3 fingers ↑ / ↓ | Switch windows of the front app | `⌘⇧\`` / `⌘\`` |
-| `⌘` held + 3 fingers ← / → | Switch apps | `⇧Tab` / `Tab` |
-| `⌃` held + 3 fingers ← / → | Switch desktops (Spaces) | `←` / `→` |
+| `⌘` held + 3 fingers ← / → | Switch apps, no switcher panel | none |
+| `⌃` held + 3 fingers ← / → | Switch desktops (Spaces) | `→` / `←` |
 
-The modifier you hold during a gesture is the modifier of the shortcut it fires,
-so there is nothing to memorize. It also means the held modifier is never
-synthesized: while `⌘` is physically down we post a bare `Tab` and the system
-sees a real `⌘Tab` — the app switcher stays open, so you can keep swiping to
-move several apps along.
+The modifier you hold says what you are switching: `⌘` for apps, `⌃` for
+desktops. Where a shortcut is posted, only the bare key is sent and it merges
+with the modifier you are already holding, so a synthesized modifier can never
+collide with a physical one.
+
+Two deliberate departures from the obvious:
+
+- **App switching does not use `⌘Tab`.** The switcher panel is inseparable from
+  that shortcut, and the point of the gesture is to change app immediately, not
+  to aim at a panel. Tripad activates the next app itself. The order is fixed
+  (launch order) rather than most-recently-used: with no panel to look at, an
+  MRU cycle bounces between the last two apps, while a fixed ring lets repeated
+  swipes walk the whole list and wrap around.
+- **Desktop switching is inverted** relative to the keys it posts: swipe left
+  and `⌃→` goes out, so the desktop follows your fingers the way natural
+  scrolling moves the page rather than the viewport.
 
 One gesture is one step. Holding your fingers still after a swipe does not
 repeat the action.
@@ -81,6 +92,7 @@ group past a threshold.
 | `Sources/Tripad/GestureTap.swift` | Event tap, touch tracking, swipe detection |
 | `Sources/Tripad/GestureAction.swift` | Gesture → shortcut map, also the menu's help text |
 | `Sources/Tripad/KeyPoster.swift` | Posts key events, merging held modifiers |
+| `Sources/Tripad/AppSwitcher.swift` | Direct app switching, no `⌘Tab` panel |
 | `Sources/Tripad/MenuBarController.swift` | Status item and menu |
 | `Sources/Tripad/AppDelegate.swift` | Wiring, permission polling |
 | `Sources/Tripad/Accessibility.swift` | Trust check and prompt |
@@ -106,6 +118,12 @@ knowing before touching `GestureTap`:
 - An `NSEvent` rebuilt from a gesture `CGEvent` reports **no modifier flags**.
   The held modifier is read live from `CGEventSource.flagsState`, the same
   source `KeyPoster` merges into what it sends.
+
+A fourth one lives on the posting side: a synthetic arrow key needs the flags
+real hardware sends. Mission Control's "Move left a space" is registered with
+the mask `0x840000` — fn + control — and a laptop arrow key reports both the
+secondary-fn and numeric-pad bits. `⌃←` was posted correctly and silently
+ignored until `KeyCode.inherentFlags` supplied them.
 
 ## Icon
 

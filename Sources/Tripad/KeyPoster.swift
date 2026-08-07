@@ -6,6 +6,22 @@ enum KeyCode: CGKeyCode {
     case grave = 0x32
     case leftArrow = 0x7B
     case rightArrow = 0x7C
+
+    /// Flags a real key press carries on its own, independent of what the user
+    /// is holding.
+    ///
+    /// On a laptop keyboard an arrow key reports both the numeric-pad and the
+    /// secondary-fn bit. That is not cosmetic: Mission Control's "Move left a
+    /// space" is registered with the modifier mask 0x840000 — fn + control —
+    /// so a synthetic `⌃←` without the fn bit simply does not match, which is
+    /// exactly why desktop switching did nothing while the keys were provably
+    /// being posted.
+    var inherentFlags: CGEventFlags {
+        switch self {
+        case .leftArrow, .rightArrow: [.maskNumericPad, .maskSecondaryFn]
+        case .tab, .grave: []
+        }
+    }
 }
 
 enum KeyPoster {
@@ -28,7 +44,7 @@ enum KeyPoster {
         guard let source = CGEventSource(stateID: .combinedSessionState) else { return }
 
         let held = CGEventSource.flagsState(.combinedSessionState).intersection(carriedFlags)
-        let flags = held.union(extraFlags)
+        let flags = held.union(extraFlags).union(key.inherentFlags)
 
         for isDown in [true, false] {
             guard let event = CGEvent(
@@ -40,6 +56,6 @@ enum KeyPoster {
             event.post(tap: .cghidEventTap)
         }
 
-        Log.gesture.debug("posted key \(key.rawValue, privacy: .public) flags \(flags.rawValue, privacy: .public)")
+        Log.gesture.info("posted key \(key.rawValue, privacy: .public) flags \(flags.rawValue, privacy: .public)")
     }
 }

@@ -9,25 +9,31 @@ enum GestureAction {
         ("3 fingers ← / →", "Switch tabs"),
         ("3 fingers ↑ / ↓", "Switch windows"),
         ("⌘ + 3 fingers ← / →", "Switch apps"),
-        ("⌃ + 3 fingers ← / →", "Switch desktops"),
+        ("⌃ + 3 fingers ← / →", "Switch desktops (follows fingers)"),
     ]
 
     /// The modifier held during a gesture is the modifier of the shortcut it
-    /// fires, which is why the held key is never synthesized here.
+    /// fires, which is why the held key is never synthesized here. App
+    /// switching is the exception: it does not post `⌘Tab` at all, because the
+    /// switcher panel is inseparable from that shortcut. See `AppSwitcher`.
+    @MainActor
     static func perform(_ direction: SwipeDirection, modifiers: CGEventFlags) {
         if modifiers.contains(.maskCommand) {
             switch direction {
-            case .left: KeyPoster.post(.tab, adding: .maskShift)  // ⌘⇧Tab
-            case .right: KeyPoster.post(.tab)                     // ⌘Tab
+            case .left: AppSwitcher.step(-1)
+            case .right: AppSwitcher.step(1)
             case .up, .down: break
             }
             return
         }
 
         if modifiers.contains(.maskControl) {
+            // Inverted on purpose: the desktop follows the fingers, the way
+            // natural scrolling moves the page rather than the viewport. Swipe
+            // left and the next desktop comes in from the right.
             switch direction {
-            case .left: KeyPoster.post(.leftArrow)    // ⌃←
-            case .right: KeyPoster.post(.rightArrow)  // ⌃→
+            case .left: KeyPoster.post(.rightArrow)  // ⌃→
+            case .right: KeyPoster.post(.leftArrow)  // ⌃←
             case .up, .down: break
             }
             return
