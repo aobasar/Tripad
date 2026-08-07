@@ -174,12 +174,20 @@ Build with SwiftPM plus a `build.sh` that assembles `Tripad.app` by hand
 (`Info.plist` with `LSUIElement`, signed with a stable local identity). arm64 only.
 
 **The owner runs this on more than one Mac**, and README carries the step-by-step
-for setting up a new one. Two things are per-machine and easy to forget: the
-`Tripad Local` certificate is generated fresh, so Accessibility has to be granted
-again there, and the conflicting trackpad gestures are on by default on a fresh
-install — a new Mac will feel like the app is broken until they are turned off.
-Keep that section current; it is the only part of the docs the owner reads while
-not at this machine.
+for setting up a new one. Three things bite there, all of them recorded in that
+section — keep it current, it is the only part of the docs read while away from
+this machine:
+
+- The `Tripad Local` certificate is generated fresh per machine, so Accessibility
+  must be granted again on the new one.
+- The conflicting trackpad gestures are on by default on a fresh install, and a
+  new Mac feels like the app is broken until they are turned off.
+- The Accessibility grant is per path as well as per signature. Testing out of
+  `build/` and then copying to `/Applications` leaves two indistinguishable
+  Tripad rows in the permission list. The installed copy is `/Applications`;
+  `build/Tripad.app` is an artifact, not an installation.
+
+The app on this machine runs from `/Applications/Tripad.app`.
 
 `Tripad` is a valid Swift module name, so the module and the product share one
 name — no aliasing needed. (The earlier working name `3Finger` would have
