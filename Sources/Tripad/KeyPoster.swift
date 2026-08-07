@@ -33,17 +33,27 @@ enum KeyPoster {
         .maskCommand, .maskControl, .maskShift, .maskAlternate,
     ]
 
-    /// Posts one key press, starting from the modifiers the user is physically
-    /// holding and adding `extraFlags` on top.
+    /// Posts one key press, by default starting from the modifiers the user is
+    /// physically holding and adding `extraFlags` on top.
     ///
-    /// The merge is the point: for the app switcher the user is already holding
-    /// `⌘`, so we post a bare `Tab` (or `Tab` + a synthetic `⇧`) and the system
-    /// sees a genuine `⌘Tab` / `⌘⇧Tab`. Replacing the flags instead of adding to
-    /// them would drop the held `⌘` and close the switcher.
-    static func post(_ key: KeyCode, adding extraFlags: CGEventFlags = []) {
+    /// The merge is usually the point: the gesture's modifier is the shortcut's
+    /// modifier, so we send the bare key and let it combine with what is already
+    /// down instead of synthesizing a duplicate.
+    ///
+    /// Pass `mergingHeld: false` when the held modifier is *not* part of the
+    /// shortcut — moving a window is triggered with `⌥` held but has to follow
+    /// up with a clean `⌃→`, and a stray `⌥` would turn that into "move by
+    /// word" instead of "move a space".
+    static func post(
+        _ key: KeyCode,
+        adding extraFlags: CGEventFlags = [],
+        mergingHeld: Bool = true
+    ) {
         guard let source = CGEventSource(stateID: .combinedSessionState) else { return }
 
-        let held = CGEventSource.flagsState(.combinedSessionState).intersection(carriedFlags)
+        let held = mergingHeld
+            ? CGEventSource.flagsState(.combinedSessionState).intersection(carriedFlags)
+            : []
         let flags = held.union(extraFlags).union(key.inherentFlags)
 
         for isDown in [true, false] {

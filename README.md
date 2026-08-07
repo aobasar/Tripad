@@ -12,6 +12,7 @@ distributed, not notarized, no App Store.
 | 3 fingers ↑ / ↓ | Switch windows of the front app | `⌘⇧\`` / `⌘\`` |
 | `⌘` held + 3 fingers ← / → | Switch apps, no switcher panel | none |
 | `⌃` held + 3 fingers ← / → | Switch desktops (Spaces) | `→` / `←` |
+| `⌥` held + 3 fingers ← / → | Move the focused window to the next desktop, and follow it | none |
 
 The modifier you hold says what you are switching: `⌘` for apps, `⌃` for
 desktops. Where a shortcut is posted, only the bare key is sent and it merges
@@ -28,7 +29,16 @@ Two deliberate departures from the obvious:
   swipes walk the whole list and wrap around.
 - **Desktop switching is inverted** relative to the keys it posts: swipe left
   and `⌃→` goes out, so the desktop follows your fingers the way natural
-  scrolling moves the page rather than the viewport.
+  scrolling moves the page rather than the viewport. Moving a window follows the
+  same inversion — the window goes the way the desktop would have gone.
+- **Moving a window between desktops uses private API.** macOS has no public
+  call and no default shortcut for it; the only supported route is dragging the
+  window in Mission Control. So `WindowMover` uses the CoreGraphics Services
+  calls every window manager on the platform relies on. This is the one place
+  Tripad depends on undocumented symbols, and it is deliberate: the alternative
+  was synthesising that drag, which moves the cursor visibly, depends on timing
+  and fails on windows with no title bar. The symbols are resolved with `dlsym`,
+  so a macOS release that removes them costs the gesture, not the app.
 
 One gesture is one step. Holding your fingers still after a swipe does not
 repeat the action.
@@ -38,12 +48,53 @@ repeat the action.
 - macOS 14+ (developed on macOS 26.6, arm64)
 - Swift 6 toolchain — Command Line Tools is enough, full Xcode is not needed
 - Accessibility permission (System Settings → Privacy & Security → Accessibility)
-- Native three-finger gestures turned off in System Settings → Trackpad → More
-  Gestures, otherwise Mission Control and friends fire at the same time
-- For desktop switching: System Settings → Keyboard → Shortcuts → Mission
-  Control → "Move left/right a space" enabled (on by default)
+- The system settings below
 
-Tripad never reads or writes system settings; the above stays a manual concern.
+## System settings Tripad depends on
+
+macOS claims three-finger swipes for itself. Every one of those built-in
+gestures has to be moved to four fingers or turned off, or it fires at the same
+time as Tripad and you get both — a desktop switch *and* Mission Control.
+
+Tripad never reads or writes these; it is a one-time manual setup.
+
+**System Settings → Trackpad → More Gestures**
+
+| Row | Set it to | Why |
+| --- | --- | --- |
+| Swipe between pages | *Scroll left or right with two fingers* | Otherwise three-finger left/right pages back and forward in the browser as well as switching tabs |
+| Swipe between full-screen applications | *Swipe with four fingers*, or off | Collides with every horizontal three-finger gesture |
+| Mission Control | *Swipe up with four fingers*, or off | Collides with three fingers up |
+| App Exposé | *Swipe down with four fingers*, or off | Collides with three fingers down |
+
+Notification Centre, Launchpad and Show Desktop use two-finger, four-finger or
+pinch gestures and do not collide — leave them alone.
+
+**System Settings → Accessibility → Pointer Control → Trackpad Options**
+
+"Use trackpad for dragging" must not be set to *Three Finger Drag*. It swallows
+three-finger movement before anything else sees it, so Tripad goes completely
+dead with no other symptom.
+
+**System Settings → Keyboard → Keyboard Shortcuts → Mission Control**
+
+"Move left a space" and "Move right a space" must be **enabled** — these are the
+shortcuts the desktop gestures post. On by default.
+
+To check the whole lot without clicking through the UI:
+
+```sh
+for domain in com.apple.AppleMultitouchTrackpad \
+              com.apple.driver.AppleBluetoothMultitouch.trackpad; do
+  echo "$domain"
+  defaults read "$domain" 2>/dev/null |
+    grep -E "ThreeFinger(HorizSwipe|VertSwipe|Drag)"
+done
+```
+
+Every value printed must be `0`. The two domains are the built-in trackpad and
+an external Magic Trackpad; System Settings only writes the one for the device
+whose panel you are looking at, so with both connected, set both.
 
 ## Build and run
 
@@ -93,6 +144,7 @@ group past a threshold.
 | `Sources/Tripad/GestureAction.swift` | Gesture → shortcut map, also the menu's help text |
 | `Sources/Tripad/KeyPoster.swift` | Posts key events, merging held modifiers |
 | `Sources/Tripad/AppSwitcher.swift` | Direct app switching, no `⌘Tab` panel |
+| `Sources/Tripad/WindowMover.swift` | Moves a window between desktops (private CGS calls) |
 | `Sources/Tripad/MenuBarController.swift` | Status item and menu |
 | `Sources/Tripad/AppDelegate.swift` | Wiring, permission polling |
 | `Sources/Tripad/Accessibility.swift` | Trust check and prompt |

@@ -19,10 +19,13 @@ GitHub repo description in sync with reality whenever behaviour changes.
 | 3 fingers ↑ / ↓ | Switch windows of the front app | `⌘⇧\`` / `⌘\`` |
 | `⌘` held + 3 fingers ← / → | Switch apps, no switcher panel | none — see below |
 | `⌃` held + 3 fingers ← / → | Switch desktops (Spaces) | `→` / `←` — inverted, see below |
+| `⌥` held + 3 fingers ← / → | Move focused window to the next desktop, and follow | none — private CGS call |
 
-The gesture set is closed. No three-finger tap, no gesture sequences
-(swipe-right-then-left), no speed/distance discrimination — all were considered
-and rejected as unreliable or unmemorable.
+The `⌥` row was added after the first four were working; the owner reopened a
+set that had been declared closed. What stays rejected is the *shape* of the
+rejected ideas, not the count: no three-finger tap, no gesture sequences
+(swipe-right-then-left), no speed or distance discrimination. Modifier + swipe
+is the only pattern, and `⇧` is the last free modifier.
 
 ## Design decisions and why
 
@@ -49,6 +52,31 @@ there" work.
 **Desktop switching is inverted relative to the keys it posts.** Swipe left and
 we post `⌃→`. The desktop follows the fingers, the way natural scrolling moves
 the page rather than the viewport. Owner's call, after trying it the other way.
+Moving a window follows the same inversion: the window goes where the desktop
+would have gone.
+
+**`WindowMover` is the one place Tripad uses private API, deliberately.** macOS
+has no public call and no default shortcut for moving a window between Spaces;
+the only supported route is dragging it in Mission Control. The choice was
+between the CoreGraphics Services calls every window manager uses and
+synthesising that drag with mouse events — the latter moves the cursor visibly,
+depends on timing, and fails on windows with no title bar. This does not
+contradict the `MultitouchSupport` decision above: there, a public alternative
+existed; here there is none.
+
+Consequences that are part of the decision:
+
+- Symbols are resolved with `dlsym`, not `@_silgen_name`, so a macOS release
+  that removes them costs the gesture and logs it, rather than failing at
+  launch.
+- `CGSCopyManagedDisplaySpaces` returns **one entry per display**, each with its
+  own `Current Space`. Taking the first entry silently targets the wrong display
+  as soon as a second monitor is attached, so the desktop ring is chosen by the
+  window's own space (`CGSCopySpacesForWindows`), with the active space only as
+  a fallback.
+- The follow-up `⌃→` must be posted with `mergingHeld: false`. The user is
+  holding `⌥`, which is not part of that chord and would turn it into "move by
+  word".
 
 **Detection uses a public `CGEventTap` on gesture events**, not the private
 `MultitouchSupport.framework`. Tap `NSEventTypeGesture`, rebuild with
@@ -113,14 +141,17 @@ ignore the light/dark menu bar.
 
 ## Conflicting system gestures
 
-The owner has already **disabled the native three-finger gestures** in System
-Settings → Trackpad → More Gestures. Tripad does not read or write system
-settings; that stays a manual concern. Watch out for Mission Control, App Exposé,
-"Swipe between full-screen applications", and three-finger drag under
-Accessibility → Pointer Control.
+README has the full list with what to set each row to and a `defaults` one-liner
+to verify it. Tripad does not read or write system settings; that stays a manual
+concern.
 
-Desktop switching relies on System Settings → Keyboard → Shortcuts → Mission
-Control → "Move left/right a space" being enabled (on by default).
+Verified state on this machine: every `TrackpadThreeFinger*` key is `0` in both
+`com.apple.AppleMultitouchTrackpad` and
+`com.apple.driver.AppleBluetoothMultitouch.trackpad`, full-screen switching has
+been moved to four fingers, and symbolic hotkeys 79/81 ("Move left/right a
+space") are enabled. Three-finger drag under Accessibility → Pointer Control is
+the nastiest of these: it eats three-finger movement before anything else sees
+it, so Tripad goes dead with no other symptom.
 
 ## Build
 

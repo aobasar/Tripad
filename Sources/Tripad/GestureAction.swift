@@ -10,6 +10,7 @@ enum GestureAction {
         ("3 fingers ↑ / ↓", "Switch windows"),
         ("⌘ + 3 fingers ← / →", "Switch apps"),
         ("⌃ + 3 fingers ← / →", "Switch desktops (follows fingers)"),
+        ("⌥ + 3 fingers ← / →", "Move window to next desktop"),
     ]
 
     /// The modifier held during a gesture is the modifier of the shortcut it
@@ -34,6 +35,17 @@ enum GestureAction {
             switch direction {
             case .left: KeyPoster.post(.rightArrow)  // ⌃→
             case .right: KeyPoster.post(.leftArrow)  // ⌃←
+            case .up, .down: break
+            }
+            return
+        }
+
+        // Same inversion as switching desktops: the window goes the way the
+        // desktop would have gone.
+        if modifiers.contains(.maskAlternate) {
+            switch direction {
+            case .left: WindowMover.move(1)
+            case .right: WindowMover.move(-1)
             case .up, .down: break
             }
             return
