@@ -11,8 +11,8 @@ distributed, not notarized, no App Store.
 | 3 fingers ← / → | Switch tabs | `⌃⇧Tab` / `⌃Tab` |
 | 3 fingers ↑ / ↓ | Switch windows of the front app | `⌘⇧\`` / `⌘\`` |
 | `⌘` held + 3 fingers ← / → | Switch apps, no switcher panel | none |
-| `⌃` held + 3 fingers ← / → | Switch desktops (Spaces) | `→` / `←` |
-| `⌥` held + 3 fingers ← / → | Move the focused window to the next desktop, and follow it — lands when you release `⌥` | `⌃→` / `⌃←` |
+| `⌃` held + 3 fingers ← / → | Switch desktops (Spaces) | `←` / `→` |
+| `⌥` held + 3 fingers ← / → | Move the focused window to the next desktop, and follow it — lands when you release `⌥` | `⌃←` / `⌃→` |
 
 The modifier you hold says what you are switching: `⌘` for apps, `⌃` for
 desktops. Where a shortcut is posted, only the bare key is sent and it merges
@@ -27,10 +27,10 @@ Two deliberate departures from the obvious:
   (launch order) rather than most-recently-used: with no panel to look at, an
   MRU cycle bounces between the last two apps, while a fixed ring lets repeated
   swipes walk the whole list and wrap around.
-- **Desktop switching is inverted** relative to the keys it posts: swipe left
-  and `⌃→` goes out, so the desktop follows your fingers the way natural
-  scrolling moves the page rather than the viewport. Moving a window follows the
-  same inversion — the window goes the way the desktop would have gone.
+- **Direction is literal**: swipe left, go left. The other arrangement — the
+  desktop following your fingers, the way natural scrolling moves the page
+  rather than the viewport — was tried for a while and did not survive use.
+  Moving a window reads the same way: swipe left and the window goes left.
 - **Moving a window between desktops is done by dragging it**, the way a person
   would: grab the title bar, switch desktop while holding, let go. The direct
   route was tried first and does not work — `CGSMoveWindowsToManagedSpace` runs

@@ -9,7 +9,7 @@ enum GestureAction {
         ("3 fingers ← / →", "Switch tabs"),
         ("3 fingers ↑ / ↓", "Switch windows"),
         ("⌘ + 3 fingers ← / →", "Switch apps"),
-        ("⌃ + 3 fingers ← / →", "Switch desktops (follows fingers)"),
+        ("⌃ + 3 fingers ← / →", "Switch desktops"),
         ("⌥ + 3 fingers ← / →", "Move window to next desktop"),
     ]
 
@@ -28,24 +28,23 @@ enum GestureAction {
             return
         }
 
+        // Direction is literal: you go where your fingers point. The opposite
+        // arrangement — desktop follows the fingers, like natural scrolling —
+        // was tried and did not survive use.
         if modifiers.contains(.maskControl) {
-            // Inverted on purpose: the desktop follows the fingers, the way
-            // natural scrolling moves the page rather than the viewport. Swipe
-            // left and the next desktop comes in from the right.
             switch direction {
-            case .left: KeyPoster.post(.rightArrow)  // ⌃→
-            case .right: KeyPoster.post(.leftArrow)  // ⌃←
+            case .left: KeyPoster.post(.leftArrow)    // ⌃←
+            case .right: KeyPoster.post(.rightArrow)  // ⌃→
             case .up, .down: break
             }
             return
         }
 
-        // Same inversion as switching desktops: the window goes the way the
-        // desktop would have gone.
+        // Moving a window reads the same way: swipe left, window goes left.
         if modifiers.contains(.maskAlternate) {
             switch direction {
-            case .left: WindowMover.move(1)
-            case .right: WindowMover.move(-1)
+            case .left: WindowMover.move(-1)
+            case .right: WindowMover.move(1)
             case .up, .down: break
             }
             return

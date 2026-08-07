@@ -18,8 +18,8 @@ GitHub repo description in sync with reality whenever behaviour changes.
 | 3 fingers ← / → | Switch tabs | `⌃⇧Tab` / `⌃Tab` |
 | 3 fingers ↑ / ↓ | Switch windows of the front app | `⌘⇧\`` / `⌘\`` |
 | `⌘` held + 3 fingers ← / → | Switch apps, no switcher panel | none — see below |
-| `⌃` held + 3 fingers ← / → | Switch desktops (Spaces) | `→` / `←` — inverted, see below |
-| `⌥` held + 3 fingers ← / → | Move focused window to the next desktop, and follow | `⌃→` / `⌃←` while dragging — lands on release |
+| `⌃` held + 3 fingers ← / → | Switch desktops (Spaces) | `←` / `→` |
+| `⌥` held + 3 fingers ← / → | Move focused window to the next desktop, and follow | `⌃←` / `⌃→` while dragging — lands on release |
 
 The `⌥` row was added after the first four were working; the owner reopened a
 set that had been declared closed. What stays rejected is the *shape* of the
@@ -49,11 +49,11 @@ just bounces between the last two apps; a fixed ring means repeated swipes walk
 the whole list and wrap around, which is what makes "keep swiping until you get
 there" work.
 
-**Desktop switching is inverted relative to the keys it posts.** Swipe left and
-we post `⌃→`. The desktop follows the fingers, the way natural scrolling moves
-the page rather than the viewport. Owner's call, after trying it the other way.
-Moving a window follows the same inversion: the window goes where the desktop
-would have gone.
+**Direction is literal: swipe left, go left.** The inverted arrangement — the
+desktop following the fingers, the way natural scrolling moves the page rather
+than the viewport — was built at the owner's request, lived in for a while, and
+then reverted because it never stopped feeling wrong in use. Do not re-propose
+it. Moving a window follows the same rule, and the two must stay in step.
 
 **`WindowMover` drags the window; it does not reassign it.** The direct route
 was built first and measured to be inert: `CGSMoveWindowsToManagedSpace` returns
