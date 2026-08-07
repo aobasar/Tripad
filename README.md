@@ -39,9 +39,10 @@ Two deliberate departures from the obvious:
   reserved for tools that inject into Dock.app with SIP partially disabled.
   Dragging needs no private API at all, so Tripad uses none.
 
-  The consequence you can see: the cursor jumps to the window's title bar for
-  the duration, and the desktop changes when you **release `⌥`**, not when you
-  swipe. That is not a delay for its own sake — `⌃→` is ignored while `⌥` is
+  The consequence you can see: the cursor jumps to the top centre of the window
+  for the duration — it cannot be hidden, because cursor visibility belongs to
+  the frontmost app and Tripad is a background agent — and the desktop changes
+  when you **release `⌥`**, not when you swipe. That is not a delay for its own sake — `⌃→` is ignored while `⌥` is
   physically held, because the WindowServer matches its space shortcut against
   the real keyboard state and not just the flags on a synthetic event. The mouse
   keeps hold of the window while it waits.

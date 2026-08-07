@@ -16,10 +16,19 @@ import AppKit
 @MainActor
 enum WindowMover {
 
-    /// Where to grab a window: just right of the traffic lights, level with
-    /// them. That strip is title bar in effectively every app, and it is the
-    /// one place a click cannot land on a toolbar control.
-    private static let grabInset = CGPoint(x: 85, y: 12)
+    /// How far below the top edge to grab a window, grabbed at its horizontal
+    /// centre.
+    ///
+    /// The first attempt was a fixed offset just right of the traffic lights,
+    /// which is title bar in most apps but lands on a toolbar control in
+    /// several. The top-centre strip is emptier: apps put their controls in a
+    /// row lower down, and the middle of the very top is left alone.
+    ///
+    /// Kept deliberately shallow: Safari's URL bar reaches high enough that 8px
+    /// in lands on it, and there is only a thin strip above. Do not go below
+    /// this either — the outermost few pixels are the resize border, and
+    /// grabbing there resizes the window instead of moving it.
+    private static let grabDepth: CGFloat = 4
 
     /// How long to let the desktop transition finish before letting go.
     private static let transition = Duration.milliseconds(700)
@@ -41,7 +50,7 @@ enum WindowMover {
         }
         guard !isDragging else { return }
 
-        let grab = CGPoint(x: frame.minX + grabInset.x, y: frame.minY + grabInset.y)
+        let grab = CGPoint(x: frame.midX, y: frame.minY + grabDepth)
         Log.gesture.info("""
             grabbing \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?", privacy: .public) \
             window \(window, privacy: .public) at \
@@ -84,6 +93,13 @@ enum WindowMover {
         dragOrigin = nil
         cursorHome = nil
     }
+
+    // The cursor visibly teleports to the window and back, and it cannot be
+    // hidden from here. Both `NSCursor.hide()` and `CGDisplayHideCursor` were
+    // tried and neither has any effect: cursor visibility belongs to the
+    // frontmost application, and Tripad is a background agent that never comes
+    // forward. Activating it to gain that right would steal focus from the very
+    // window being moved, which is worse than the jump. Left visible.
 
     private static func post(_ type: CGEventType, at point: CGPoint) {
         let event = CGEvent(

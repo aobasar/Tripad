@@ -69,10 +69,17 @@ undocumented symbols anywhere.
 
 Details that are load-bearing:
 
-- The grab point is `(x + 85, y + 12)` from the window's top-left, just right of
-  the traffic lights. That strip is title bar in effectively every app and is
-  the one place a synthetic click cannot land on a toolbar control. It is a
-  named constant because it will eventually need adjusting.
+- The grab point is the window's **top centre, 4px down** (`grabDepth`). The
+  first attempt was a fixed offset just right of the traffic lights, which is
+  title bar in most apps but lands on a toolbar control in several. Top centre
+  is emptier — apps put their controls in a row lower down. 4px and not more:
+  Safari's URL bar reaches high enough that 8px in hits it. Not less either, or
+  the click lands on the resize border and resizes instead of dragging.
+- **The cursor cannot be hidden during the drag.** `NSCursor.hide()` and
+  `CGDisplayHideCursor` were both tried and neither does anything: cursor
+  visibility belongs to the frontmost app, and Tripad is a background agent.
+  Activating it to earn that right would steal focus from the window being
+  moved. The visible teleport stays.
 - **The desktop switch has to wait for `⌥` to come up.** `⌃→` posted while `⌥`
   is physically held is ignored: the WindowServer matches its space shortcut
   against the real keyboard state, not only the flags on the synthetic event.
