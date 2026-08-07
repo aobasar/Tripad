@@ -1,170 +1,171 @@
 import AppKit
 
-/// Moves the focused window to the neighbouring desktop, then follows it there.
+/// Moves the focused window to the neighbouring desktop by doing what a person
+/// would do: grab it by the title bar and switch desktops while holding it.
 ///
-/// macOS offers no public API and no default shortcut for this — the only
-/// supported way is dragging a window in Mission Control. The alternatives were
-/// this or simulating that drag with synthetic mouse events, which moves the
-/// cursor visibly, depends on timing, and fails on windows without a title bar.
-/// So this uses the private CoreGraphics Services calls that every window
-/// manager on the platform uses. They need no special entitlement and no SIP
-/// change; they are simply undocumented and may disappear in a macOS release.
+/// The direct route was tried first and does not work. `CGSMoveWindowsToManagedSpace`
+/// runs without complaint and changes nothing — the window's space, read back
+/// immediately after, is still the old one. That matches how the platform
+/// treats this class of operation: window managers that move windows between
+/// Spaces need code injected into Dock.app and SIP partially disabled. An
+/// ordinary signed app does not get to reassign another app's windows.
 ///
-/// The symbols are resolved with `dlsym` rather than declared with
-/// `@_silgen_name` so their absence is a logged no-op instead of a launch-time
-/// crash — when this breaks, the gesture should stop working, not the app.
+/// Dragging is the supported path, so this drives it: press on the title bar,
+/// nudge to start the drag, wait for `⌥` to come up, post `⌃→`, then release on
+/// the far side. Everything here is public API.
 @MainActor
 enum WindowMover {
 
+    /// Where to grab a window: just right of the traffic lights, level with
+    /// them. That strip is title bar in effectively every app, and it is the
+    /// one place a click cannot land on a toolbar control.
+    private static let grabInset = CGPoint(x: 85, y: 12)
+
+    /// How long to let the desktop transition finish before letting go.
+    private static let transition = Duration.milliseconds(700)
+
     /// `offset` is in desktops: +1 is the desktop to the right.
     static func move(_ offset: Int) {
-        guard let cgs = CoreGraphicsServices.shared else {
-            Log.gesture.error("CGS symbols unavailable, cannot move window")
+        guard let window = focusedWindowID(), let frame = frame(of: window) else {
+            Log.gesture.info("""
+                no ordinary window in front to move \
+                (frontmost app: \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?", privacy: .public))
+                """)
             return
         }
-        guard let window = focusedWindowID() else {
-            Log.gesture.info("no ordinary window in front to move")
-            return
-        }
-        guard let (spaces, currentIndex) = desktops(cgs, containing: window) else {
-            Log.gesture.error("could not read the desktop list")
-            return
-        }
+        guard !isDragging else { return }
 
-        // Desktops do not wrap: ⌃→ on the last one does nothing, and neither
-        // should this.
-        let targetIndex = currentIndex + offset
-        guard spaces.indices.contains(targetIndex) else {
-            Log.gesture.info("no desktop \(offset > 0 ? "right" : "left", privacy: .public) of this one")
-            return
-        }
-
-        cgs.moveWindows(cgs.connection, [window] as CFArray, spaces[targetIndex])
+        let grab = CGPoint(x: frame.minX + grabInset.x, y: frame.minY + grabInset.y)
         Log.gesture.info("""
-            moved window \(window, privacy: .public) to desktop \
-            \(targetIndex + 1, privacy: .public) of \(spaces.count, privacy: .public)
+            grabbing \(NSWorkspace.shared.frontmostApplication?.localizedName ?? "?", privacy: .public) \
+            window \(window, privacy: .public) at \
+            \(Int(grab.x), privacy: .public),\(Int(grab.y), privacy: .public)
             """)
 
-        // Follow it, or the window vanishes from under the user. The held ⌥ is
-        // not part of this chord, hence mergingHeld: false.
+        beginDrag(at: grab)
+        followWhenModifierReleased(offset)
+    }
+
+    // MARK: - The drag
+
+    private static var cursorHome: CGPoint?
+    private static var dragPoint: CGPoint?
+    private static var isDragging: Bool { dragPoint != nil }
+
+    private static func beginDrag(at point: CGPoint) {
+        cursorHome = CGEvent(source: nil)?.location
+        dragPoint = point
+
+        post(.leftMouseDown, at: point)
+        // Without movement the press is a click, and a click is not a drag.
+        for step in stride(from: 3.0, through: 12.0, by: 3.0) {
+            post(.leftMouseDragged, at: CGPoint(x: point.x + step, y: point.y))
+        }
+        dragPoint = CGPoint(x: point.x + 12, y: point.y)
+    }
+
+    private static func endDrag() {
+        if let point = dragPoint {
+            post(.leftMouseUp, at: point)
+        }
+        if let home = cursorHome {
+            CGWarpMouseCursorPosition(home)
+        }
+        dragPoint = nil
+        cursorHome = nil
+    }
+
+    private static func post(_ type: CGEventType, at point: CGPoint) {
+        let event = CGEvent(
+            mouseEventSource: CGEventSource(stateID: .combinedSessionState),
+            mouseType: type,
+            mouseCursorPosition: point,
+            mouseButton: .left
+        )
+        event?.post(tap: .cghidEventTap)
+    }
+
+    // MARK: - Waiting for the modifier
+
+    private static var pendingFollow: Int?
+    private static var followTimer: Timer?
+    private static var followTicks = 0
+
+    /// Switches desktop once `⌥` is up, then drops the window there.
+    ///
+    /// The wait is not politeness, it is necessity: `⌃→` posted while `⌥` is
+    /// physically down is ignored. The WindowServer matches its space shortcut
+    /// against the real keyboard state, not just the flags on the synthetic
+    /// event — the keys go out correctly and nothing happens. The window stays
+    /// held by the mouse in the meantime, so the drag survives the wait.
+    private static func followWhenModifierReleased(_ offset: Int) {
+        pendingFollow = offset
+        followTicks = 0
+        guard followTimer == nil else { return }
+
+        followTimer = Timer.scheduledTimer(withTimeInterval: 0.06, repeats: true) { _ in
+            Task { @MainActor in
+                followTicks += 1
+                let stillHeld = CGEventSource.flagsState(.combinedSessionState)
+                    .contains(.maskAlternate)
+
+                if !stillHeld, let offset = pendingFollow {
+                    stopWaiting()
+                    await switchDesktopAndDrop(offset)
+                } else if followTicks > 80 {
+                    // ~5s. Do not leave the mouse button held down for ever.
+                    Log.gesture.info("gave up waiting for the modifier to come up")
+                    stopWaiting()
+                    endDrag()
+                }
+            }
+        }
+    }
+
+    private static func stopWaiting() {
+        followTimer?.invalidate()
+        followTimer = nil
+        pendingFollow = nil
+    }
+
+    private static func switchDesktopAndDrop(_ offset: Int) async {
         KeyPoster.post(
             offset > 0 ? .rightArrow : .leftArrow,
             adding: .maskControl,
             mergingHeld: false
         )
+        try? await Task.sleep(for: transition)
+        endDrag()
+        Log.gesture.info("dropped the window on the next desktop")
     }
+
+    // MARK: - Finding the window
 
     /// The frontmost app's frontmost ordinary window.
     ///
     /// `CGWindowListCopyWindowInfo` returns windows front to back. Layer 0
     /// filters out panels, menus and the desktop. Window titles would need
-    /// Screen Recording permission, but ids and owners do not, and ids are all
-    /// this needs.
+    /// Screen Recording permission; ids and bounds do not.
     private static func focusedWindowID() -> CGWindowID? {
-        guard let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
-              let windows = CGWindowListCopyWindowInfo(
-                [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
-              ) as? [[String: Any]]
-        else { return nil }
-
-        for window in windows {
-            guard window[kCGWindowOwnerPID as String] as? pid_t == pid,
-                  window[kCGWindowLayer as String] as? Int == 0,
-                  let id = window[kCGWindowNumber as String] as? CGWindowID
-            else { continue }
-            return id
+        guard let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier else {
+            return nil
         }
-        return nil
+        return onScreenWindows().first {
+            $0[kCGWindowOwnerPID as String] as? pid_t == pid
+        }?[kCGWindowNumber as String] as? CGWindowID
     }
 
-    /// The desktops of the display the window is on, left to right, plus the
-    /// index of the one it currently occupies. Full-screen spaces are excluded
-    /// — a window cannot be sent into one.
-    ///
-    /// `CGSCopyManagedDisplaySpaces` returns one entry per display, each with
-    /// its own `Current Space`. Picking the first entry therefore always answers
-    /// for whichever display happens to come first, which is wrong the moment a
-    /// second monitor is attached. The window's own space decides instead, and
-    /// the active space is only the fallback.
-    private static func desktops(
-        _ cgs: CoreGraphicsServices,
-        containing window: CGWindowID
-    ) -> ([UInt64], Int)? {
-        guard let displays = cgs.copySpaces(cgs.connection)?
-            .takeRetainedValue() as? [[String: Any]]
-        else { return nil }
-
-        let windowSpace = spaceOf(window, cgs)
-
-        for display in displays {
-            guard let all = display["Spaces"] as? [[String: Any]] else { continue }
-
-            let ids = all.compactMap { space -> UInt64? in
-                guard space["type"] as? Int == 0 else { return nil }
-                return space["id64"] as? UInt64
-            }
-
-            let origin = windowSpace ?? (display["Current Space"] as? [String: Any])?["id64"] as? UInt64
-            guard let origin, let index = ids.firstIndex(of: origin) else { continue }
-            return (ids, index)
-        }
-        return nil
+    private static func frame(of window: CGWindowID) -> CGRect? {
+        guard let bounds = onScreenWindows().first(where: {
+            $0[kCGWindowNumber as String] as? CGWindowID == window
+        })?[kCGWindowBounds as String] else { return nil }
+        return CGRect(dictionaryRepresentation: bounds as! CFDictionary)
     }
 
-    /// Which desktop a window currently lives on.
-    private static func spaceOf(_ window: CGWindowID, _ cgs: CoreGraphicsServices) -> UInt64? {
-        guard let copy = cgs.copySpacesForWindows else { return nil }
-        // 0x7 selects every space, not just the visible one.
-        let spaces = copy(cgs.connection, 0x7, [window] as CFArray)?
-            .takeRetainedValue() as? [NSNumber]
-        return spaces?.first?.uint64Value
-    }
-}
-
-/// The three private symbols this needs, looked up once.
-@MainActor
-private struct CoreGraphicsServices {
-
-    typealias ConnectionID = UInt32
-    typealias CopySpaces = @convention(c) (ConnectionID) -> Unmanaged<CFArray>?
-    typealias MoveWindows = @convention(c) (ConnectionID, CFArray, UInt64) -> Void
-    typealias CopySpacesForWindows =
-        @convention(c) (ConnectionID, UInt32, CFArray) -> Unmanaged<CFArray>?
-
-    let connection: ConnectionID
-    let copySpaces: CopySpaces
-    let moveWindows: MoveWindows
-    /// Optional: without it the current display is guessed from the active
-    /// space, which is only wrong when a window is moved on a second display.
-    let copySpacesForWindows: CopySpacesForWindows?
-
-    static let shared: CoreGraphicsServices? = {
-        typealias MainConnection = @convention(c) () -> ConnectionID
-
-        guard let mainConnection = symbol("CGSMainConnectionID").map({
-                  unsafeBitCast($0, to: MainConnection.self)
-              }),
-              let copySpaces = symbol("CGSCopyManagedDisplaySpaces").map({
-                  unsafeBitCast($0, to: CopySpaces.self)
-              }),
-              let moveWindows = symbol("CGSMoveWindowsToManagedSpace").map({
-                  unsafeBitCast($0, to: MoveWindows.self)
-              })
-        else { return nil }
-
-        return CoreGraphicsServices(
-            connection: mainConnection(),
-            copySpaces: copySpaces,
-            moveWindows: moveWindows,
-            copySpacesForWindows: symbol("CGSCopySpacesForWindows").map {
-                unsafeBitCast($0, to: CopySpacesForWindows.self)
-            }
-        )
-    }()
-
-    /// RTLD_DEFAULT: search everything already loaded. SkyLight, which exports
-    /// these, is linked in by AppKit.
-    private static func symbol(_ name: String) -> UnsafeMutableRawPointer? {
-        dlsym(UnsafeMutableRawPointer(bitPattern: -2), name)
+    private static func onScreenWindows() -> [[String: Any]] {
+        let windows = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
+        ) as? [[String: Any]] ?? []
+        return windows.filter { $0[kCGWindowLayer as String] as? Int == 0 }
     }
 }

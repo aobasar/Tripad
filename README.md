@@ -12,7 +12,7 @@ distributed, not notarized, no App Store.
 | 3 fingers ↑ / ↓ | Switch windows of the front app | `⌘⇧\`` / `⌘\`` |
 | `⌘` held + 3 fingers ← / → | Switch apps, no switcher panel | none |
 | `⌃` held + 3 fingers ← / → | Switch desktops (Spaces) | `→` / `←` |
-| `⌥` held + 3 fingers ← / → | Move the focused window to the next desktop, and follow it | none |
+| `⌥` held + 3 fingers ← / → | Move the focused window to the next desktop, and follow it — lands when you release `⌥` | `⌃→` / `⌃←` |
 
 The modifier you hold says what you are switching: `⌘` for apps, `⌃` for
 desktops. Where a shortcut is posted, only the bare key is sent and it merges
@@ -31,14 +31,20 @@ Two deliberate departures from the obvious:
   and `⌃→` goes out, so the desktop follows your fingers the way natural
   scrolling moves the page rather than the viewport. Moving a window follows the
   same inversion — the window goes the way the desktop would have gone.
-- **Moving a window between desktops uses private API.** macOS has no public
-  call and no default shortcut for it; the only supported route is dragging the
-  window in Mission Control. So `WindowMover` uses the CoreGraphics Services
-  calls every window manager on the platform relies on. This is the one place
-  Tripad depends on undocumented symbols, and it is deliberate: the alternative
-  was synthesising that drag, which moves the cursor visibly, depends on timing
-  and fails on windows with no title bar. The symbols are resolved with `dlsym`,
-  so a macOS release that removes them costs the gesture, not the app.
+- **Moving a window between desktops is done by dragging it**, the way a person
+  would: grab the title bar, switch desktop while holding, let go. The direct
+  route was tried first and does not work — `CGSMoveWindowsToManagedSpace` runs
+  without complaint and changes nothing, as reading the window's space straight
+  back after the call showed. Reassigning another app's windows to a Space is
+  reserved for tools that inject into Dock.app with SIP partially disabled.
+  Dragging needs no private API at all, so Tripad uses none.
+
+  The consequence you can see: the cursor jumps to the window's title bar for
+  the duration, and the desktop changes when you **release `⌥`**, not when you
+  swipe. That is not a delay for its own sake — `⌃→` is ignored while `⌥` is
+  physically held, because the WindowServer matches its space shortcut against
+  the real keyboard state and not just the flags on a synthetic event. The mouse
+  keeps hold of the window while it waits.
 
 One gesture is one step. Holding your fingers still after a swipe does not
 repeat the action.
@@ -144,7 +150,7 @@ group past a threshold.
 | `Sources/Tripad/GestureAction.swift` | Gesture → shortcut map, also the menu's help text |
 | `Sources/Tripad/KeyPoster.swift` | Posts key events, merging held modifiers |
 | `Sources/Tripad/AppSwitcher.swift` | Direct app switching, no `⌘Tab` panel |
-| `Sources/Tripad/WindowMover.swift` | Moves a window between desktops (private CGS calls) |
+| `Sources/Tripad/WindowMover.swift` | Moves a window between desktops by driving a title-bar drag |
 | `Sources/Tripad/MenuBarController.swift` | Status item and menu |
 | `Sources/Tripad/AppDelegate.swift` | Wiring, permission polling |
 | `Sources/Tripad/Accessibility.swift` | Trust check and prompt |

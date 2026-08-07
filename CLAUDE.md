@@ -19,7 +19,7 @@ GitHub repo description in sync with reality whenever behaviour changes.
 | 3 fingers ↑ / ↓ | Switch windows of the front app | `⌘⇧\`` / `⌘\`` |
 | `⌘` held + 3 fingers ← / → | Switch apps, no switcher panel | none — see below |
 | `⌃` held + 3 fingers ← / → | Switch desktops (Spaces) | `→` / `←` — inverted, see below |
-| `⌥` held + 3 fingers ← / → | Move focused window to the next desktop, and follow | none — private CGS call |
+| `⌥` held + 3 fingers ← / → | Move focused window to the next desktop, and follow | `⌃→` / `⌃←` while dragging — lands on release |
 
 The `⌥` row was added after the first four were working; the owner reopened a
 set that had been declared closed. What stays rejected is the *shape* of the
@@ -55,28 +55,35 @@ the page rather than the viewport. Owner's call, after trying it the other way.
 Moving a window follows the same inversion: the window goes where the desktop
 would have gone.
 
-**`WindowMover` is the one place Tripad uses private API, deliberately.** macOS
-has no public call and no default shortcut for moving a window between Spaces;
-the only supported route is dragging it in Mission Control. The choice was
-between the CoreGraphics Services calls every window manager uses and
-synthesising that drag with mouse events — the latter moves the cursor visibly,
-depends on timing, and fails on windows with no title bar. This does not
-contradict the `MultitouchSupport` decision above: there, a public alternative
-existed; here there is none.
+**`WindowMover` drags the window; it does not reassign it.** The direct route
+was built first and measured to be inert: `CGSMoveWindowsToManagedSpace` returns
+without complaint and the window's space, read straight back, is unchanged —
+`space now 3, wanted 64` in the log. Reassigning another app's windows to a
+Space is reserved for tools that inject into Dock.app with SIP partially
+disabled. Do not spend another afternoon on the private route: the symbols
+resolve, the calls are accepted, and nothing happens.
 
-Consequences that are part of the decision:
+What works is doing it the way a person does — press on the title bar, nudge to
+start a drag, switch desktop, release. All public API, so Tripad depends on no
+undocumented symbols anywhere.
 
-- Symbols are resolved with `dlsym`, not `@_silgen_name`, so a macOS release
-  that removes them costs the gesture and logs it, rather than failing at
-  launch.
-- `CGSCopyManagedDisplaySpaces` returns **one entry per display**, each with its
-  own `Current Space`. Taking the first entry silently targets the wrong display
-  as soon as a second monitor is attached, so the desktop ring is chosen by the
-  window's own space (`CGSCopySpacesForWindows`), with the active space only as
-  a fallback.
-- The follow-up `⌃→` must be posted with `mergingHeld: false`. The user is
-  holding `⌥`, which is not part of that chord and would turn it into "move by
-  word".
+Details that are load-bearing:
+
+- The grab point is `(x + 85, y + 12)` from the window's top-left, just right of
+  the traffic lights. That strip is title bar in effectively every app and is
+  the one place a synthetic click cannot land on a toolbar control. It is a
+  named constant because it will eventually need adjusting.
+- **The desktop switch has to wait for `⌥` to come up.** `⌃→` posted while `⌥`
+  is physically held is ignored: the WindowServer matches its space shortcut
+  against the real keyboard state, not only the flags on the synthetic event.
+  The keys go out correctly and nothing happens. The mouse keeps hold of the
+  window during the wait, so this reads as intentional rather than laggy.
+- That `⌃→` is posted with `mergingHeld: false`, since the held `⌥` is not part
+  of the chord and would turn it into "move by word".
+- `CGSManagedDisplaySetCurrentSpace` was tried as a way to dodge the wait. It is
+  worse than useless: it does not move the screen, it only rewrites the
+  *reported* current space, after which the system disagrees with itself about
+  which desktop is showing.
 
 **Detection uses a public `CGEventTap` on gesture events**, not the private
 `MultitouchSupport.framework`. Tap `NSEventTypeGesture`, rebuild with
