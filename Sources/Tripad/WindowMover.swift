@@ -24,6 +24,12 @@ enum WindowMover {
     /// How long to let the desktop transition finish before letting go.
     private static let transition = Duration.milliseconds(700)
 
+    /// How far to pull the cursor to convince the system a drag has started.
+    /// Kept as small as will still register, and undone in the same breath, so
+    /// what shows on screen is a flicker rather than a window sitting visibly
+    /// off its mark for as long as the modifier is held.
+    private static let nudge: CGFloat = 4
+
     /// `offset` is in desktops: +1 is the desktop to the right.
     static func move(_ offset: Int) {
         guard let window = focusedWindowID(), let frame = frame(of: window) else {
@@ -49,29 +55,33 @@ enum WindowMover {
     // MARK: - The drag
 
     private static var cursorHome: CGPoint?
-    private static var dragPoint: CGPoint?
-    private static var isDragging: Bool { dragPoint != nil }
+    private static var dragOrigin: CGPoint?
+    private static var isDragging: Bool { dragOrigin != nil }
 
     private static func beginDrag(at point: CGPoint) {
         cursorHome = CGEvent(source: nil)?.location
-        dragPoint = point
+        dragOrigin = point
 
         post(.leftMouseDown, at: point)
         // Without movement the press is a click, and a click is not a drag.
-        for step in stride(from: 3.0, through: 12.0, by: 3.0) {
-            post(.leftMouseDragged, at: CGPoint(x: point.x + step, y: point.y))
-        }
-        dragPoint = CGPoint(x: point.x + 12, y: point.y)
+        post(.leftMouseDragged, at: CGPoint(x: point.x + nudge, y: point.y))
+        // Straight back, so the window waits out the modifier where it started
+        // instead of hanging a few pixels to the right the whole time.
+        post(.leftMouseDragged, at: point)
     }
 
     private static func endDrag() {
-        if let point = dragPoint {
-            post(.leftMouseUp, at: point)
+        if let origin = dragOrigin {
+            // Drag back to where the press landed before letting go. The window
+            // has been following the cursor all along, so without this it keeps
+            // whatever offset the nudge introduced and ends up shifted right.
+            post(.leftMouseDragged, at: origin)
+            post(.leftMouseUp, at: origin)
         }
         if let home = cursorHome {
             CGWarpMouseCursorPosition(home)
         }
-        dragPoint = nil
+        dragOrigin = nil
         cursorHome = nil
     }
 
