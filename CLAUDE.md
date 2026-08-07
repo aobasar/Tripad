@@ -4,9 +4,9 @@ A small personal macOS menu-bar app that maps three-finger trackpad gestures to
 navigation shortcuts. Single user (the repo owner), personal machine, MacBook Air
 (arm64). Not a product — no distribution, no App Store, no notarization.
 
-Status: **scaffold built and compiling** (v0.1.0). Gesture tap, key posting,
-menu bar UI, permission handling and `build.sh` are in place; real-trackpad
-behaviour is not validated yet. Next step is tuning against actual use.
+Status: **working** (v0.1.0). All four gestures verified against the real
+trackpad: direction, held modifier and posted keys confirmed in the unified log.
+Remaining work is tuning and polish, not bring-up.
 
 Repo: `git@github.com:aobasar/Tripad.git` (private). Keep `README.md` and the
 GitHub repo description in sync with reality whenever behaviour changes.
@@ -43,8 +43,31 @@ exactly 3 contacts, derive direction from average normalized movement.
 Touch-Tab (github.com/ris58h/Touch-Tab) migrated in this same direction, which
 is corroboration that the public route is the durable one.
 
+**Three traps in that event stream**, each of which produced a silent,
+symptomless failure during bring-up. Re-deriving them is expensive; they are
+commented at their sites in `GestureTap.swift`:
+
+1. *Touchless gesture events are interleaved with the real ones.* Reading them
+   as "fingers lifted" resets tracking every other event and nothing ever
+   reaches the threshold. Skip events whose `touches(matching: .any)` is empty.
+2. *`normalizedPosition` is `0...1` on both axes, but the trackpad is not
+   square.* The same physical movement produces a larger `dy` than `dx`, so
+   almost every swipe reads as vertical. Rescale `dy` by
+   `NSTouch.deviceSize.height / .width` before comparing axes.
+3. *An `NSEvent` rebuilt from a gesture `CGEvent` carries no modifier flags.*
+   `⌘`- and `⌃`-qualified gestures therefore fell through to the unqualified
+   branch. Read the held modifiers live from `CGEventSource.flagsState`, which
+   is also what `KeyPoster` merges into the keys it sends.
+
+**The app logs to `subsystem == "com.aobasar.Tripad"`.** For an invisible,
+permission-gated app this is the only way to tell "gesture not detected" from
+"detected and mapped elsewhere"; it is what turned each of the traps above from
+a guess into a measurement. Keep it.
+
 **One gesture equals one step.** Holding fingers still after a swipe does not
-repeat the action.
+repeat the action. A gap in the event stream longer than 0.4 s also ends the
+gesture, so a lift that gets swallowed (by the app switcher, for instance)
+cannot wedge the detector.
 
 **The menu doubles as the help document.** The dropdown lists the gesture map as
 disabled info rows, so "how did this work again?" is always answerable without
@@ -58,6 +81,13 @@ designated requirement is `identifier + certificate leaf` rather than a cdhash.
 Ad-hoc (`codesign -s -`) remains only as a loud fallback. The PKCS#12 handoff
 uses `/usr/bin/openssl` on purpose — OpenSSL 3 from Homebrew writes a MAC that
 `security import` rejects.
+
+**The icon lives in `Assets/`, not in the build.** `icon-source.png` is the
+original art (full-bleed, opaque corners); `scripts/make-appicon.swift` clips it
+onto the macOS icon grid so the corners are transparent and writes
+`AppIcon.png`. `build.sh` only does `sips` + `iconutil` on that master. The
+status item keeps an SF Symbol — a colour icon does not read at 18 pt and would
+ignore the light/dark menu bar.
 
 ## Conflicting system gestures
 

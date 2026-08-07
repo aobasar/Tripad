@@ -39,5 +39,7 @@ enum KeyPoster {
             event.flags = flags
             event.post(tap: .cghidEventTap)
         }
+
+        Log.gesture.debug("posted key \(key.rawValue, privacy: .public) flags \(flags.rawValue, privacy: .public)")
     }
 }

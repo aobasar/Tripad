@@ -8,6 +8,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MenuBarDelegate {
     private var permissionTimer: Timer?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Log.app.info("launched, accessibility trusted: \(Accessibility.isTrusted, privacy: .public)")
+
         let tap = GestureTap { direction, modifiers in
             GestureAction.perform(direction, modifiers: modifiers)
         }
@@ -29,7 +31,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, MenuBarDelegate {
         guard let gestureTap else { return false }
         if gestureTap.isRunning { return true }
         guard Accessibility.isTrusted else { return false }
-        return gestureTap.start()
+        let started = gestureTap.start()
+        Log.app.info("event tap start: \(started ? "ok" : "failed", privacy: .public)")
+        return started
     }
 
     /// Permission is granted outside the app, so poll instead of asking the

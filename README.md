@@ -76,7 +76,7 @@ touching contacts are read with `touches(matching:in:)`, exactly three are
 required, and the direction comes from the average normalized movement of the
 group past a threshold.
 
-| File | Role |
+| Path | Role |
 | --- | --- |
 | `Sources/Tripad/GestureTap.swift` | Event tap, touch tracking, swipe detection |
 | `Sources/Tripad/GestureAction.swift` | Gesture → shortcut map, also the menu's help text |
@@ -85,9 +85,58 @@ group past a threshold.
 | `Sources/Tripad/AppDelegate.swift` | Wiring, permission polling |
 | `Sources/Tripad/Accessibility.swift` | Trust check and prompt |
 | `Sources/Tripad/Settings.swift` | The single persisted flag |
+| `Sources/Tripad/Log.swift` | Logger handles |
+| `Assets/` | `icon-source.png` (original art) and `AppIcon.png` (1024 master) |
+| `scripts/make-appicon.swift` | Regenerates the master from the source art |
 
-Swipe sensitivity is the `threshold` constant in `GestureTap.swift`
-(normalized trackpad units, `0.08` by default).
+Swipe sensitivity is the `threshold` constant in `GestureTap.swift` — `0.08` of
+the trackpad's width by default.
+
+Three things about the event stream cost real debugging time and are worth
+knowing before touching `GestureTap`:
+
+- Gesture events **without any touch payload** are interleaved with the real
+  ones. Reading them as "fingers lifted" resets tracking every other event, and
+  no swipe ever reaches the threshold. Events whose `touches(matching: .any)` is
+  empty are skipped.
+- `normalizedPosition` is `0...1` on both axes, but the trackpad is much wider
+  than it is tall, so the same physical movement yields a larger `dy` than `dx`.
+  Compared raw, nearly every swipe reads as vertical. `dy` is rescaled by the
+  device aspect ratio before the axes are compared.
+- An `NSEvent` rebuilt from a gesture `CGEvent` reports **no modifier flags**.
+  The held modifier is read live from `CGEventSource.flagsState`, the same
+  source `KeyPoster` merges into what it sends.
+
+## Icon
+
+`Assets/icon-source.png` is the original artwork; it is full-bleed with opaque
+black corners. `scripts/make-appicon.swift` lays it out on the macOS icon grid
+(824 of a 1024 canvas) and clips it to a rounded square so the corners are
+actually transparent, producing `Assets/AppIcon.png`. `build.sh` turns that
+master into `AppIcon.icns` on every build. Re-run the script by hand only when
+the artwork changes:
+
+```sh
+swift scripts/make-appicon.swift Assets/icon-source.png Assets/AppIcon.png
+```
+
+The menu-bar item deliberately keeps an SF Symbol instead: a glossy colour icon
+does not read at 18 pt and would not follow the light/dark menu bar.
+
+## When something does not work
+
+The app is invisible and permission-gated, so it reports what it is doing to the
+unified log:
+
+```sh
+log show --last 5m --predicate 'subsystem == "com.aobasar.Tripad"' --info
+```
+
+At launch it records whether Accessibility is trusted and whether the event tap
+installed. Every recognised swipe is logged with its direction, deltas and the
+modifiers that were held — enough to tell "not detected" apart from "detected
+and mapped to something else". Add `--debug` for per-event touch counts and the
+keys being posted.
 
 ## Out of scope
 

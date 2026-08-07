@@ -14,8 +14,8 @@ enum GestureAction {
 
     /// The modifier held during a gesture is the modifier of the shortcut it
     /// fires, which is why the held key is never synthesized here.
-    static func perform(_ direction: SwipeDirection, modifiers: NSEvent.ModifierFlags) {
-        if modifiers.contains(.command) {
+    static func perform(_ direction: SwipeDirection, modifiers: CGEventFlags) {
+        if modifiers.contains(.maskCommand) {
             switch direction {
             case .left: KeyPoster.post(.tab, adding: .maskShift)  // ⌘⇧Tab
             case .right: KeyPoster.post(.tab)                     // ⌘Tab
@@ -24,7 +24,7 @@ enum GestureAction {
             return
         }
 
-        if modifiers.contains(.control) {
+        if modifiers.contains(.maskControl) {
             switch direction {
             case .left: KeyPoster.post(.leftArrow)    // ⌃←
             case .right: KeyPoster.post(.rightArrow)  // ⌃→
