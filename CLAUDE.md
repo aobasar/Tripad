@@ -171,7 +171,15 @@ it, so Tripad goes dead with no other symptom.
 
 No full Xcode on this machine — Command Line Tools only (Swift 6.3, macOS 26.6).
 Build with SwiftPM plus a `build.sh` that assembles `Tripad.app` by hand
-(`Info.plist` with `LSUIElement`, ad-hoc signature). arm64 only.
+(`Info.plist` with `LSUIElement`, signed with a stable local identity). arm64 only.
+
+**The owner runs this on more than one Mac**, and README carries the step-by-step
+for setting up a new one. Two things are per-machine and easy to forget: the
+`Tripad Local` certificate is generated fresh, so Accessibility has to be granted
+again there, and the conflicting trackpad gestures are on by default on a fresh
+install — a new Mac will feel like the app is broken until they are turned off.
+Keep that section current; it is the only part of the docs the owner reads while
+not at this machine.
 
 `Tripad` is a valid Swift module name, so the module and the product share one
 name — no aliasing needed. (The earlier working name `3Finger` would have
@@ -189,6 +197,10 @@ menu rather than failing silently.
 Launch at login, a preferences window, per-app gesture mappings, gesture
 sequences, three-finger tap, auto-update, persistence beyond a single
 enabled/disabled flag in `UserDefaults`.
+
+Launch at login stays out of the app, but README points at System Settings →
+General → Login Items for it, which is the right place for a tool that already
+leaves every other system setting alone.
 
 ## Conventions
 

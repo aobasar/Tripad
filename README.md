@@ -119,6 +119,85 @@ menu says so instead of failing silently.
 
 To keep it around, copy `build/Tripad.app` to `/Applications` yourself.
 
+## Installing on another Mac
+
+Nothing is distributed, so a second machine means building it there. Fifteen
+minutes, most of it waiting for a download.
+
+**1. Command Line Tools**, if `swift --version` does not answer:
+
+```sh
+xcode-select --install
+```
+
+Full Xcode is not needed. The app is arm64-only, so this assumes Apple silicon.
+
+**2. Clone and build.** The repo is private, so the machine needs an SSH key on
+the GitHub account first (`ssh -T git@github.com` should greet you by name):
+
+```sh
+git clone git@github.com:aobasar/Tripad.git
+cd Tripad
+./build.sh
+```
+
+The first build creates the `Tripad Local` signing certificate in the login
+keychain and **may ask for your login password** while marking it trusted for
+code signing. That is expected, and it is once per machine — see *Signing*
+below for why a stable identity matters.
+
+**3. Install and launch:**
+
+```sh
+cp -R build/Tripad.app /Applications/
+open /Applications/Tripad.app
+```
+
+The icon appears in the menu bar. There is no Dock icon and no window.
+
+**4. Grant Accessibility.** The app asks on first launch; if you miss the
+prompt, open the menu and click the ⚠︎ row, or go to System Settings → Privacy
+& Security → Accessibility and add `/Applications/Tripad.app`. No relaunch
+needed — it polls every two seconds and starts working the moment you allow it.
+
+This grant is per-machine and per-signature. The certificate is generated fresh
+on each Mac, so the new machine will ask even though the old one already trusts
+the app.
+
+**5. Turn off the conflicting system gestures.** This is the step people skip
+and then wonder why nothing works. A fresh macOS install claims three-finger
+swipes for Mission Control, App Exposé, page-swiping and full-screen app
+switching, and those fire *alongside* Tripad. The nastiest one is Three Finger
+Drag under Accessibility → Pointer Control: it swallows three-finger movement
+before anything else sees it, so Tripad goes completely dead with no other
+symptom.
+
+See *System settings Tripad depends on* above for what to set each row to, and
+the `defaults` one-liner there to confirm every value reads `0`.
+
+**6. Optional — start it at login.** Tripad has no launch-at-login code by
+design; add it as a system login item instead: System Settings → General →
+Login Items & Extensions → **+** → `/Applications/Tripad.app`.
+
+**Updating later**, on any machine:
+
+Quit it from its menu first, then:
+
+```sh
+git pull && ./build.sh
+rm -rf /Applications/Tripad.app && cp -R build/Tripad.app /Applications/
+open /Applications/Tripad.app
+```
+
+The removal is not pedantry: `cp -R` over an existing bundle merges into it and
+leaves whatever the new build no longer ships. The Accessibility grant survives
+all of this, because the signature identifies the certificate rather than the
+binary's hash.
+
+If a gesture does not do what you expect, do not guess: read the log. The
+command is in *When something does not work* below, and the app records every
+swipe it recognises along with the modifier that was held.
+
 ## Signing
 
 macOS keys the Accessibility grant to the code signature. A plain ad-hoc
@@ -222,6 +301,18 @@ three-finger tap, auto-update, any persistence beyond the enabled flag.
 
 ## Status
 
-Scaffold complete and building: gesture detection, key posting, menu bar UI and
-permission handling are all in place. Not yet validated against real trackpad
-use — thresholds and per-app behaviour may need tuning.
+Working, in daily use. All five gestures were verified against a real trackpad,
+not just built: direction, held modifier, and the keys or actions they produce
+were each confirmed in the unified log.
+
+Known rough edges, both cosmetic:
+
+- Moving a window shows the cursor jumping to the top of the window and back.
+  It cannot be hidden from a background agent, so it stays visible.
+- The window's desktop changes when you release `⌥`, not the instant you swipe.
+  That is a constraint, not a delay for its own sake — see the gesture notes
+  above.
+
+`grabDepth` in `WindowMover.swift` (4px below the top edge) is the one number
+likely to need revisiting: an app that puts a control at the very top centre of
+its window would be grabbed by that control instead of by the window.
