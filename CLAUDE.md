@@ -159,13 +159,20 @@ README has the full list with what to set each row to and a `defaults` one-liner
 to verify it. Tripad does not read or write system settings; that stays a manual
 concern.
 
-Verified state on this machine: every `TrackpadThreeFinger*` key is `0` in both
+Verified state on the MacBook Air: every `TrackpadThreeFinger*` key is `0` in both
 `com.apple.AppleMultitouchTrackpad` and
 `com.apple.driver.AppleBluetoothMultitouch.trackpad`, full-screen switching has
 been moved to four fingers, and symbolic hotkeys 79/81 ("Move left/right a
 space") are enabled. Three-finger drag under Accessibility → Pointer Control is
 the nastiest of these: it eats three-finger movement before anything else sees
 it, so Tripad goes dead with no other symptom.
+
+On the second Mac (macOS 26.5.2), `TrackpadThreeFingerDrag` and
+`TrackpadThreeFingerTapGesture` are already `0` and hotkeys 79/81 are enabled,
+but `TrackpadThreeFingerHorizSwipeGesture` and `...VertSwipeGesture` still read
+`2` in both domains — the built-in three-finger swipes are live there and have
+to be moved to four fingers by hand. Do not assume the settings travel with the
+Apple ID; they did not.
 
 ## Build
 
@@ -174,7 +181,7 @@ Build with SwiftPM plus a `build.sh` that assembles `Tripad.app` by hand
 (`Info.plist` with `LSUIElement`, signed with a stable local identity). arm64 only.
 
 **The owner runs this on more than one Mac**, and README carries the step-by-step
-for setting up a new one. Three things bite there, all of them recorded in that
+for setting up a new one. Four things bite there, all of them recorded in that
 section — keep it current, it is the only part of the docs read while away from
 this machine:
 
@@ -186,6 +193,14 @@ this machine:
   `build/` and then copying to `/Applications` leaves two indistinguishable
   Tripad rows in the permission list. The installed copy is `/Applications`;
   `build/Tripad.app` is an artifact, not an installation.
+- Carrying the built `.app` over instead of rebuilding works, but the transfer
+  stamps it with `com.apple.quarantine` and Gatekeeper then refuses to launch it
+  at all: *"Apple could not verify Tripad is free of malware."* That message is
+  about quarantine, not about the signature — `codesign --verify --deep --strict`
+  passes on the receiving Mac, because the leaf certificate is embedded in the
+  signature. `spctl` rejecting a self-signed, un-notarized app is expected
+  everywhere, including on the Mac that built it, and is not a symptom of
+  anything. `xattr -dr com.apple.quarantine /Applications/Tripad.app` clears it.
 
 The app on this machine runs from `/Applications/Tripad.app`.
 

@@ -202,6 +202,46 @@ leaves whatever the new build no longer ships. The Accessibility grant survives
 all of this, because the signature identifies the certificate rather than the
 binary's hash.
 
+### Copying the built app across instead of rebuilding
+
+Carrying `Tripad.app` over from the other Mac — AirDrop, Screen Sharing, a zip —
+does work, and is the two-minute version of the above. One thing blocks it.
+
+The receiving Mac shows:
+
+> Apple could not verify "Tripad" is free of malware that may harm your Mac or
+> compromise your privacy.
+
+That message is about **quarantine, not the signature**. The transfer stamps the
+bundle with `com.apple.quarantine`, and a quarantined app has to clear Gatekeeper
+before its first launch. Tripad never can: it is self-signed and not notarized,
+so `spctl -a -t exec` returns `rejected` on any machine, including the one that
+built it. Signature integrity is a separate question and it is fine — the signing
+certificate is embedded in the signature itself, so `codesign --verify --deep
+--strict` passes on the new Mac even though `Tripad Local` is not in its keychain
+at all.
+
+So remove the flag, and it launches:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Tripad.app
+open /Applications/Tripad.app
+```
+
+`-r` because the attribute is set on files inside the bundle, not only on the
+bundle directory. Do this once per copy; a rebuild on the machine itself never
+picks the flag up.
+
+What this shortcut does **not** save you:
+
+- **Accessibility still has to be granted on the new Mac** — the grant is
+  per machine and per path, and nothing about it travels with the file.
+- **The conflicting trackpad gestures still have to be turned off.** This is what
+  actually makes a fresh Mac feel like the app is broken.
+
+Build from source when you can. It is the only version of this whose binary you
+can tie to the source in front of you, and it costs a couple of minutes.
+
 If a gesture does not do what you expect, do not guess: read the log. The
 command is in *When something does not work* below, and the app records every
 swipe it recognises along with the modifier that was held.
@@ -301,6 +341,10 @@ installed. Every recognised swipe is logged with its direction, deltas and the
 modifiers that were held — enough to tell "not detected" apart from "detected
 and mapped to something else". Add `--debug` for per-event touch counts and the
 keys being posted.
+
+If the app will not open at all and macOS says Apple could not verify it, that is
+quarantine on a copied bundle, not a broken build — see *Copying the built app
+across instead of rebuilding* above.
 
 ## Out of scope
 
