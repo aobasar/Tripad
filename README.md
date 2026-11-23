@@ -1,8 +1,15 @@
 # Tripad
 
 A menu-bar app for macOS that maps three-finger trackpad gestures to navigation
-shortcuts. Personal tool: one user, one machine (MacBook Air, arm64). Not
-distributed, not notarized, no App Store.
+shortcuts.
+
+I built it for my own Mac and use it every day. It is open source under the
+[MIT licence](LICENSE) and shared **as source only**: there is no download, it
+is not notarized and it is not on the App Store. You build it yourself with
+Apple's free Command Line Tools — *Installing* below takes about fifteen
+minutes.
+
+More about it: https://www.aobasar.com/experiments/tripad
 
 ## Gestures
 
@@ -119,10 +126,10 @@ menu says so instead of failing silently.
 
 To keep it around, copy `build/Tripad.app` to `/Applications` yourself.
 
-## Installing on another Mac
+## Installing
 
-Nothing is distributed, so a second machine means building it there. Fifteen
-minutes, most of it waiting for a download.
+There is no prebuilt app: you build it on your own Mac. About fifteen minutes,
+most of it waiting for Command Line Tools to download.
 
 **1. Command Line Tools**, if `swift --version` does not answer:
 
@@ -132,11 +139,10 @@ xcode-select --install
 
 Full Xcode is not needed. The app is arm64-only, so this assumes Apple silicon.
 
-**2. Clone and build.** The repo is private, so the machine needs an SSH key on
-the GitHub account first (`ssh -T git@github.com` should greet you by name):
+**2. Clone and build:**
 
 ```sh
-git clone git@github.com:aobasar/Tripad.git
+git clone https://github.com/aobasar/Tripad.git
 cd Tripad
 ./build.sh
 ```
@@ -203,6 +209,10 @@ all of this, because the signature identifies the certificate rather than the
 binary's hash.
 
 ### Copying the built app across instead of rebuilding
+
+This is for moving **your own build between your own Macs**. Tripad is shared
+as source only, so please point other people to the steps above rather than
+handing them a copy.
 
 Carrying `Tripad.app` over from the other Mac — AirDrop, Screen Sharing, a zip —
 does work, and is the two-minute version of the above. One thing blocks it.
@@ -368,3 +378,22 @@ Known rough edges, both cosmetic:
 `grabDepth` in `WindowMover.swift` (4px below the top edge) is the one number
 likely to need revisiting: an app that puts a control at the very top centre of
 its window would be grabbed by that control instead of by the window.
+
+## Contributing
+
+Issues and pull requests are welcome. Tripad is a small tool shared as-is: it
+does what I need on my own Macs, and the *Out of scope* list above is
+deliberate. If a gesture misbehaves, include the unified-log lines from *When
+something does not work* — they show what was detected and what was posted.
+
+## License
+
+[MIT](LICENSE) © 2026 Ahmet O. Basar
+
+## Trademarks
+
+Apple, Mac, macOS, MacBook and Magic Trackpad are trademarks of Apple Inc.,
+registered in the U.S. and other countries and regions. Mission Control and
+other product names are trademarks of their respective owners. Tripad is an
+independent project and is not affiliated with, sponsored or approved by
+Apple Inc.

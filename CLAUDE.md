@@ -8,7 +8,8 @@ Status: **working** (v0.1.0). All four gestures verified against the real
 trackpad: direction, held modifier and posted keys confirmed in the unified log.
 Remaining work is tuning and polish, not bring-up.
 
-Repo: `git@github.com:aobasar/Tripad.git` (private). Keep `README.md` and the
+Repo: https://github.com/aobasar/Tripad (public since 2026-11-22, MIT licence; shared as source only — no
+binaries, releases or notarized builds). Keep `README.md` and the
 GitHub repo description in sync with reality whenever behaviour changes.
 
 ## Gesture map
